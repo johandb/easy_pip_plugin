@@ -141,12 +141,6 @@ class _MyAppState extends State<MyApp> {
                         style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black),
                         textAlign: TextAlign.center,
                       ),
-                      SizedBox(height: 8),
-                      Text(
-                        'Hiermee omzeil je de swipe-to-home beweging en dwing je iOS om direct het Picture-in-Picture venster te openen.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: Colors.grey),
-                      ),
                     ],
                   ),
                 ),
