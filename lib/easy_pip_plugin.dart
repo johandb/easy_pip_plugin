@@ -1,18 +1,33 @@
 export 'src/easy_pip_widget.dart';
 
 import 'dart:ui';
+import 'package:flutter/services.dart'; // VERPLICHT voor MethodChannel
 import 'src/pip_api.g.dart';
 
 class EasyPipPlugin {
   final _api = EasyPipApi();
   
-  // Statische callbacks zodat de losstaande _FlutterApiHandler klasse erbij kan
+  // De klassieke, onfeilbare MethodChannel brug
+  static const MethodChannel _bridgeChannel = MethodChannel('com.jdbs.iptv.easy_pip_plugin.bridge');
+  
   static void Function(bool isActive)? _onStatusChanged;
   static VoidCallback? _onPlayPauseTriggered;
 
   EasyPipPlugin() {
-    // Registreer de API handler eenmalig bij het aanmaken van de plugin
     EasyPipFlutterApi.setUp(_FlutterApiHandler());
+    
+    // Luister naar de handmatige native platform-thread signalen
+    _bridgeChannel.setMethodCallHandler((MethodCall call) async {
+      switch (call.method) {
+        case 'onPiPStatusChanged':
+          final bool isActive = call.arguments as bool;
+          if (_onStatusChanged != null) _onStatusChanged!(isActive);
+          break;
+        case 'onPlayPauseActionTriggered':
+          if (_onPlayPauseTriggered != null) _onPlayPauseTriggered!();
+          break;
+      }
+    });
   }
 
   Future<bool> isPiPSupported() async => _api.isPiPSupported();
@@ -27,7 +42,6 @@ class EasyPipPlugin {
 
   Future<PipStatus> getPiPStatus() async => _api.getPiPStatus();
 
-  // NIEUW: Sluis de afspeelstatus door naar de Native Host API via Pigeon
   Future<void> updatePlaybackState(bool isPlaying) async {
     await _api.updatePlaybackState(isPlaying);
   }
@@ -36,7 +50,6 @@ class EasyPipPlugin {
     _onStatusChanged = callback;
   }
 
-  // NIEUW: Sla de luisteraar voor de native play/pause klik statisch op
   void setPlayPauseActionListener(VoidCallback callback) {
     _onPlayPauseTriggered = callback;
   }
@@ -50,7 +63,6 @@ class _FlutterApiHandler implements EasyPipFlutterApi {
     }
   }
 
-  // FIX: Implementeer de missende Pigeon methode die de compilerfout gaf!
   @override
   void onPlayPauseActionTriggered() {
     if (EasyPipPlugin._onPlayPauseTriggered != null) {
