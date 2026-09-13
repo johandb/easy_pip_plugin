@@ -4,10 +4,8 @@ import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 
 void main() {
-  // Verplichte initialisatie voor Flutter en media_kit
   WidgetsFlutterBinding.ensureInitialized();
   MediaKit.ensureInitialized();
-
   runApp(const MyApp());
 }
 
@@ -19,15 +17,12 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-  // 1. Initialiseer de media_kit componenten
   late final Player _player = Player();
   late final VideoController _videoController = VideoController(_player);
 
-  // De IPTV demo video URL
   final String _videoUrl = 'https://www.jdbs.nl/iptv/movie/demo/demo/20301.mp4';
-
-  // Status om de replay knop te tonen wanneer de video klaar is
   bool _isVideoCompleted = false;
+  bool _isPiPSupported = false;
 
   @override
   void initState() {
@@ -36,7 +31,13 @@ class _MyAppState extends State<MyApp> {
   }
 
   Future<void> _initPlayer() async {
-    // Luister of de video het einde heeft bereikt voor de replay knop
+    final supported = await EasyPipPlugin().isPiPSupported();
+    if (mounted) {
+      setState(() {
+        _isPiPSupported = supported;
+      });
+    }
+
     _player.stream.completed.listen((bool isCompleted) {
       if (mounted) {
         setState(() {
@@ -45,7 +46,6 @@ class _MyAppState extends State<MyApp> {
       }
     });
 
-    // Start de video direct op met de juiste User-Agent headers
     await _player.open(
       Media(
         _videoUrl,
@@ -60,11 +60,10 @@ class _MyAppState extends State<MyApp> {
 
   @override
   void dispose() {
-    _player.dispose(); // Netjes afsluiten om geheugenlekken te voorkomen
+    _player.dispose();
     super.dispose();
   }
 
-  /// Start de video opnieuw vanaf seconde nul
   Future<void> _restartVideo() async {
     await _player.seek(Duration.zero);
     await _player.play();
@@ -73,95 +72,88 @@ class _MyAppState extends State<MyApp> {
     });
   }
 
-  /// Handmatige trigger om naar PiP te gaan wanneer er op een knop wordt geklikt
   Future<void> _triggerManualPiP() async {
-    final supported = await EasyPipPlugin().isPiPSupported();
-    if (supported) {
-      // Start PiP met de standaard 16:9 breedbeeldverhouding
+    if (_isPiPSupported) {
       await EasyPipPlugin().enterPiP(width: 16, height: 9);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // We houden de MaterialApp als basis
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      // HIER GEBRUIKEN WE HET GLOEDNIEUWE WIDGET UIT JE PLUGIN:
       home: EasyPipWidget(
         videoController: _videoController,
         pipWidth: 16,
         pipHeight: 9,
         child: Scaffold(
-          appBar: AppBar(
-            title: const Text('Easy PiP IPTV Player'),
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.picture_in_picture_alt),
-                onPressed: _triggerManualPiP,
-                tooltip: 'Start PiP Modus',
-              ),
-            ],
-          ),
+          appBar: AppBar(title: const Text('Easy PiP IPTV Player')),
           backgroundColor: Colors.black,
-          body: Column(
-            children: [
-              // Videospeler in 16:9 verhouding met een replay overlay voor het grote scherm
-              AspectRatio(
-                aspectRatio: 16 / 9,
-                child: Stack(
-                  children: [
-                    Video(controller: _videoController),
-                    if (_isVideoCompleted)
-                      Container(
-                        color: Colors.black.withOpacity(0.6),
-                        child: Center(
-                          child: ElevatedButton.icon(
-                            onPressed: _restartVideo,
-                            icon: const Icon(Icons.replay),
-                            label: const Text('Video opnieuw afspelen'),
-                            style: ElevatedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: Colors.black),
+
+          // De FloatingActionButton blijft behouden voor handmatige PiP activatie
+          floatingActionButton: _isPiPSupported
+              ? FloatingActionButton(
+                  onPressed: _triggerManualPiP,
+                  tooltip: 'Start PiP Modus',
+                  backgroundColor: Colors.amber,
+                  child: const Icon(Icons.picture_in_picture_alt, color: Colors.black),
+                )
+              : null,
+
+          // FIX VOOR DE RENDERFLEX OVERFLOW: De hoofd-body is nu een ListView
+          body: SafeArea(
+            child: ListView(
+              padding: EdgeInsets.zero,
+              children: [
+                // 1. De Video-sectie (blijft netjes 16:9)
+                AspectRatio(
+                  aspectRatio: 16 / 9,
+                  child: Stack(
+                    children: [
+                      Video(controller: _videoController),
+                      if (_isVideoCompleted)
+                        Container(
+                          color: Colors.black.withOpacity(0.6),
+                          child: Center(
+                            child: ElevatedButton.icon(
+                              onPressed: _restartVideo,
+                              icon: const Icon(Icons.replay),
+                              label: const Text('Video opnieuw afspelen'),
+                              style: ElevatedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: Colors.black),
+                            ),
                           ),
                         ),
-                      ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
 
-              // Informatie en extra handmatige knop onder de video op het grote scherm
-              Expanded(
-                child: Container(
+                // 2. De Informatie-sectie onder de video (krijgt een witte achtergrond)
+                Container(
                   color: Colors.white,
                   width: double.infinity,
-                  padding: const EdgeInsets.all(24.0),
+                  padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 40.0),
                   child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.check_circle_outline, size: 64, color: Colors.green),
+                      const Icon(Icons.screen_rotation, size: 48, color: Colors.green),
                       const SizedBox(height: 16),
                       Text(
                         _isVideoCompleted ? 'De video is afgelopen!' : 'De IPTV demo video speelt nu af!',
-                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black),
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 8),
                       const Text(
-                        'Dankzij het EasyPipWidget schakelt deze app nu automatisch over naar pure video zodra PiP start.',
+                        'De interface maakt nu gebruik van een ListView in plaats van een vaste Column. '
+                        'Hierdoor schuift de tekst in landscape-modus netjes onder het scherm en is de overflow-fout permanent opgelost.',
                         textAlign: TextAlign.center,
                         style: TextStyle(color: Colors.grey),
-                      ),
-                      const SizedBox(height: 32),
-                      ElevatedButton.icon(
-                        onPressed: _triggerManualPiP,
-                        icon: const Icon(Icons.picture_in_picture_alt),
-                        label: const Text('Handmatig naar PiP Modus'),
-                        style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12)),
                       ),
                     ],
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
