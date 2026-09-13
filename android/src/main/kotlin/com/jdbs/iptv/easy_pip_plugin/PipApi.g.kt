@@ -269,6 +269,7 @@ interface EasyPipApi {
   fun enterPiP(width: Long, height: Long)
   fun getPiPStatus(): PipStatus
   fun setupAutoPiP(width: Long, height: Long)
+  fun updatePlaybackState(isPlaying: Boolean)
 
   companion object {
     /** The codec used by EasyPipApi. */
@@ -347,6 +348,24 @@ interface EasyPipApi {
           channel.setMessageHandler(null)
         }
       }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.easy_pip_plugin.EasyPipApi.updatePlaybackState$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { message, reply ->
+            val args = message as List<Any?>
+            val isPlayingArg = args[0] as Boolean
+            val wrapped: List<Any?> = try {
+              api.updatePlaybackState(isPlayingArg)
+              listOf(null)
+            } catch (exception: Throwable) {
+              PipApiPigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
     }
   }
 }
@@ -365,6 +384,25 @@ class EasyPipFlutterApi(private val binaryMessenger: BinaryMessenger, private va
       val channelName = "dev.flutter.pigeon.easy_pip_plugin.EasyPipFlutterApi.onPiPStatusChanged$separatedMessageChannelSuffix"
       val channel = BasicMessageChannel<Any?>(binaryMessenger, channelName, codec)
       channel.send(listOf(isActiveArg)) {
+        if (it is List<*>) {
+          if (it.size > 1) {
+            continuation.resumeWithException(FlutterError(it[0] as String, it[1] as String, it[2] as String?))
+          } else {
+            continuation.resume(Unit)
+          }
+        } else {
+          continuation.resumeWithException(PipApiPigeonUtils.createConnectionError(channelName))
+        } 
+      }
+    }
+  }
+  suspend fun onPlayPauseActionTriggered()
+{
+    val separatedMessageChannelSuffix = if (messageChannelSuffix.isNotEmpty()) ".$messageChannelSuffix" else ""
+    return suspendCancellableCoroutine { continuation ->
+      val channelName = "dev.flutter.pigeon.easy_pip_plugin.EasyPipFlutterApi.onPlayPauseActionTriggered$separatedMessageChannelSuffix"
+      val channel = BasicMessageChannel<Any?>(binaryMessenger, channelName, codec)
+      channel.send(null) {
         if (it is List<*>) {
           if (it.size > 1) {
             continuation.resumeWithException(FlutterError(it[0] as String, it[1] as String, it[2] as String?))

@@ -7,6 +7,9 @@ public class EasyPipPlugin: NSObject, FlutterPlugin, EasyPipApi, AVPictureInPict
     private var flutterApi: EasyPipFlutterApi?
     private var pipController: AVPictureInPictureController?
     
+    // Status om bij te houden of de video speelt (nodig voor iOS updates)
+    private var isVideoPlaying: Bool = true
+    
     // Native render-lagen om iOS te voorzien van de verplichte videolaag
     private var sampleBufferLayer = AVSampleBufferDisplayLayer()
     private var containerView: UIView?
@@ -64,7 +67,7 @@ public class EasyPipPlugin: NSObject, FlutterPlugin, EasyPipApi, AVPictureInPict
             if self.pipController == nil {
                 let contentSource = AVPictureInPictureController.ContentSource(
                     sampleBufferDisplayLayer: self.sampleBufferLayer,
-                    playbackDelegate: self
+                    playbackFilenameHint: nil
                 )
                 
                 let controller = AVPictureInPictureController(contentSource: contentSource)
@@ -102,6 +105,22 @@ public class EasyPipPlugin: NSObject, FlutterPlugin, EasyPipApi, AVPictureInPict
         let active = pipController?.isPictureInPictureActive ?? false
         return PipStatus(isSupported: supported, isActive: active)
     }
+    
+    // NIEUW: Pigeon implementatie om de native iOS afspeelstatus bij te werken
+    public func updatePlaybackState(isPlaying: Bool) throws {
+        self.isVideoPlaying = isPlaying
+        
+        // iOS synchroniseert het native knopicoontje via de AVPictureInPictureController.
+        // Door de controller te triggeren dat de playback rate veranderd is, switcht iOS
+        // de knop automatisch tussen een Pause-symbool en een Play-symbool.
+        if #available(iOS 15.0, *) {
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self else { return }
+                // Forceert iOS om de tijdsbalk en afspeelstatus te verversen
+                self.pipController?.invalidatePlaybackState()
+            }
+        }
+    }
 
     // --- AVPictureInPictureControllerDelegate Callbacks ---
 
@@ -118,13 +137,31 @@ public class EasyPipPlugin: NSObject, FlutterPlugin, EasyPipApi, AVPictureInPict
 
 // --- Extensie voor iOS 15+ Custom Playback State Handling ---
 extension EasyPipPlugin: AVPictureInPictureSampleBufferPlaybackDelegate {
+    
+    // GECORRIGEERD: Wordt afgevuurd als de gebruiker op de native iOS PiP play/pause knop drukt
     public func pictureInPictureController(_ pictureInPictureController: AVPictureInPictureController, setPlaying playing: Bool) {
-        // Optioneel: Synchroniseer hier de play/pause status met je media_kit player via een MethodChannel
+        self.isVideoPlaying = playing
+        
+        // Sluis de native iOS klik direct via Pigeon door naar Flutter
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            self.flutterApi?.onPlayPauseActionTriggered { _ in }
+            
+            // Zorg dat het native knopje visueel direct meespringt
+            pictureInPictureController.invalidatePlaybackState()
+        }
     }
 
     public func pictureInPictureControllerTimeRangeForPlayback(_ pictureInPictureController: AVPictureInPictureController) -> CMTimeRange {
-        // IPTV-streams zijn live uitzendingen, dus we retourneren een oneindige tijdsduur
+        // IPTV-streams zijn live uitzendingen, dus we retourneren een live óf oneindige tijdsduur.
+        // Door een forward-moving range te sturen of een live status te veinsen, 
+        // snapt iOS dat er geen traditionele scrubber getoond hoeft te worden.
         return CMTimeRange(start: .zero, duration: .positiveInfinity)
+    }
+
+    // NIEUW VERPLICHTE DELEGATE METHODE: Vertelt iOS of de video momenteel speelt of gepauzeerd is
+    public func pictureInPictureControllerIsPlaybackPaused(_ pictureInPictureController: AVPictureInPictureController) -> Bool {
+        return !isVideoPlaying
     }
 
     public func pictureInPictureController(_ pictureInPictureController: AVPictureInPictureController, didTransitionToRenderSize newSize: CMSize) {

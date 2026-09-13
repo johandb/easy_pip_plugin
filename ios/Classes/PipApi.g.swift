@@ -270,6 +270,7 @@ protocol EasyPipApi {
   func enterPiP(width: Int64, height: Int64) throws
   func getPiPStatus() throws -> PipStatus
   func setupAutoPiP(width: Int64, height: Int64) throws
+  func updatePlaybackState(isPlaying: Bool) throws
 }
 
 /// Generated setup class from Pigeon to handle messages through the `binaryMessenger`.
@@ -336,12 +337,28 @@ class EasyPipApiSetup {
     } else {
       setupAutoPiPChannel.setMessageHandler(nil)
     }
+    let updatePlaybackStateChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.easy_pip_plugin.EasyPipApi.updatePlaybackState\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      updatePlaybackStateChannel.setMessageHandler { message, reply in
+        let args = message as! [Any?]
+        let isPlayingArg = args[0] as! Bool
+        do {
+          try api.updatePlaybackState(isPlaying: isPlayingArg)
+          reply(wrapResult(nil))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      updatePlaybackStateChannel.setMessageHandler(nil)
+    }
   }
 }
 
 /// Generated protocol from Pigeon that represents Flutter messages that can be called from Swift.
 protocol EasyPipFlutterApiProtocol {
   func onPiPStatusChanged(isActive isActiveArg: Bool) async throws
+  func onPlayPauseActionTriggered() async throws
 }
 class EasyPipFlutterApi: EasyPipFlutterApiProtocol {
   private let binaryMessenger: FlutterBinaryMessenger
@@ -358,6 +375,26 @@ class EasyPipFlutterApi: EasyPipFlutterApiProtocol {
       let channelName: String = "dev.flutter.pigeon.easy_pip_plugin.EasyPipFlutterApi.onPiPStatusChanged\(messageChannelSuffix)"
       let channel = FlutterBasicMessageChannel(name: channelName, binaryMessenger: binaryMessenger, codec: codec)
       channel.sendMessage([isActiveArg] as [Any?]) { response in
+        guard let listResponse = response as? [Any?] else {
+          continuation.resume(throwing: createConnectionError(withChannelName: channelName))
+          return
+        }
+        if listResponse.count > 1 {
+          let code: String = listResponse[0] as! String
+          let message: String? = nilOrValue(listResponse[1])
+          let details: String? = nilOrValue(listResponse[2])
+          continuation.resume(throwing: PigeonError(code: code, message: message, details: details))
+        } else {
+          continuation.resume()
+        }
+      }
+    }
+  }
+  func onPlayPauseActionTriggered() async throws {
+    return try await withCheckedThrowingContinuation { continuation in
+      let channelName: String = "dev.flutter.pigeon.easy_pip_plugin.EasyPipFlutterApi.onPlayPauseActionTriggered\(messageChannelSuffix)"
+      let channel = FlutterBasicMessageChannel(name: channelName, binaryMessenger: binaryMessenger, codec: codec)
+      channel.sendMessage(nil) { response in
         guard let listResponse = response as? [Any?] else {
           continuation.resume(throwing: createConnectionError(withChannelName: channelName))
           return

@@ -1,4 +1,3 @@
-//import 'package:pigeon/pigeon.dart';
 import 'package:pigeon/pigeon.dart';
 
 @ConfigurePigeon(PigeonOptions(
@@ -20,13 +19,17 @@ abstract class EasyPipApi {
   bool isPiPSupported();
   void enterPiP(int width, int height);
   PipStatus getPiPStatus();
-  
-  // NIEUW: Bereidt iOS voor op automatisch in PiP gaan bij swipen naar home
   void setupAutoPiP(int width, int height); 
+  
+  // NIEUW: Geef de huidige afspeelstatus door aan Native voor de juiste knoppen (play vs pause)
+  void updatePlaybackState(bool isPlaying);
 }
 
 // Communicatie van Native naar Flutter (Events)
 @FlutterApi()
 abstract class EasyPipFlutterApi {
   void onPiPStatusChanged(bool isActive);
+
+  // NIEUW: Native meldt aan Flutter dat de gebruiker op de PiP-systeemknop heeft geklikt
+  void onPlayPauseActionTriggered();
 }
