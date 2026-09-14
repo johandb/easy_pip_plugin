@@ -14,7 +14,6 @@ import AVFoundation
     private var nativePlayer: AVPlayer?
     private var playerLayer = AVPlayerLayer()
     
-    // Onthoud de breedte en hoogte voor hergebruik bij re-initialisatie
     private var savedWidth: Int64 = 300
     private var savedHeight: Int64 = 200
 
@@ -33,6 +32,23 @@ import AVFoundation
         registrar.addMethodCallDelegate(instance, channel: FlutterMethodChannel(name: "easy_pip_plugin", binaryMessenger: messenger))
         
         instance.setupAudioSession()
+        
+        NotificationCenter.default.addObserver(
+            instance,
+            selector: #selector(instance.appDidBecomeActive),
+            name: UIApplication.didBecomeActiveNotification,
+            object: nil
+        )
+    }
+
+    @objc private func appDidBecomeActive() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            if self.isVideoPlaying && (self.pipController?.isPictureInPictureActive == false) {
+                self.nativePlayer?.play()
+                self.playerLayer.setNeedsDisplay() // Forceer her-tekenen van het videoscherm
+            }
+        }
     }
 
     private func setupAudioSession() {
@@ -117,19 +133,30 @@ import AVFoundation
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
             
-            // FIX: Als de controller kapot of nil is (na de 1e keer sluiten), maak hem opnieuw aan
-            if self.pipController == nil {
-                try? self.setupAutoPiP(width: width, height: height)
+            if self.pipController != nil {
+                self.pipController = nil
             }
             
-            // FORCEER AFSPELEN: iOS weigert stabiele PiP-activatie als de speler niet al actief draait.
+            let controller = AVPictureInPictureController(playerLayer: self.playerLayer)
+            if let controller = controller {
+                controller.delegate = self
+                if #available(iOS 14.2, *) {
+                    controller.canStartPictureInPictureAutomaticallyFromInline = true
+                }
+                self.pipController = controller
+            }
+            
             self.setupAudioSession()
             self.nativePlayer?.play()
             
-            // Geef de AVPlayer een fractie van een seconde de tijd om buffers te starten alvorens PiP te triggeren
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                if let controller = self.pipController, controller.isPictureInPicturePossible {
-                    controller.startPictureInPicture()
+            // FIX 1: Controleer of de AVPlayer klaar is met bufferen om het zwarte scherm te voorkomen
+            if self.nativePlayer?.currentItem?.status == .readyToPlay {
+                self.pipController?.startPictureInPicture()
+            } else {
+                // Als hij nog niet klaar is (1e keer opstart), geef hem kort de tijd en dwing play
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                    self.nativePlayer?.play()
+                    self.pipController?.startPictureInPicture()
                 }
             }
         }
@@ -156,34 +183,42 @@ import AVFoundation
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
             self.setupAudioSession()
-            self.nativePlayer?.play() // Extra zekerheid dat het beeld niet bevriest bij opstarten
+            self.nativePlayer?.play() 
             self.bridgeChannel?.invokeMethod("onPiPStatusChanged", arguments: true)
         }
     }
 
-    // FIX: Wanneer de PiP volledig stopt (gesloten door de gebruiker of hersteld naar de app)
+    public func pictureInPictureController(_ pictureInPictureController: AVPictureInPictureController, restoreUserInterfaceForPictureInPictureStopWithCompletionHandler completionHandler: @escaping (Bool) -> Void) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            self.setupAudioSession()
+            
+            // FIX 2: Zorg dat bij terugkeer naar full screen de video direct start en hertekent
+            if self.isVideoPlaying {
+                self.nativePlayer?.play()
+                self.playerLayer.setNeedsDisplay() // Dwing iOS om de video-pixels direct op het hoofdscherm te tonen
+            }
+            
+            self.bridgeChannel?.invokeMethod("onPiPStatusChanged", arguments: false)
+            completionHandler(true)
+        }
+    }
+
     public func pictureInPictureControllerDidStopPictureInPicture(_ pictureInPictureController: AVPictureInPictureController) {
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
-            
             self.setupAudioSession()
             if self.isVideoPlaying {
-                self.nativePlayer?.play() // Direct verder spelen in-app zonder hapering
+                self.nativePlayer?.play()
+                self.playerLayer.setNeedsDisplay()
             }
-            self.bridgeChannel?.invokeMethod("onPiPStatusChanged", arguments: false)
-            
-            // CRUCIAL FIX VOOR HET "2E KEER WERKT NIET" PROBLEEM:
-            // Maak de oude controller leeg. Bij een volgende enterPiP() call wordt er direct een frisse controller gebouwd.
-            self.pipController = nil
         }
     }
     
-    // FIX VOOR AUTOMATISCH AFSPELEN: Mocht iOS om wat voor reden dan ook de stream pauzeren tijdens het openen, vangen we dit hier op.
     public func pictureInPictureController(_ pictureInPictureController: AVPictureInPictureController, setPlaybackPaused paused: Bool) {
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
-            // Als iOS probeert te pauzeren, maar we willen dat de video afspeelt, dwingen we hem terug naar play.
-            if !paused && self.isVideoPlaying {
+            if paused && self.isVideoPlaying {
                 self.nativePlayer?.play()
             }
         }
