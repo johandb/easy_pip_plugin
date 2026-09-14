@@ -6,7 +6,6 @@ import AVFoundation
 @objc public class EasyPipPlugin: NSObject, FlutterPlugin, EasyPipApi, AVPictureInPictureControllerDelegate {
     private var flutterApi: EasyPipFlutterApi?
     private var pipController: AVPictureInPictureController?
-    private var bridgeChannel: FlutterMethodChannel?
     
     private var isVideoPlaying: Bool = true
     private var containerView: UIView?
@@ -24,17 +23,6 @@ import AVFoundation
         EasyPipApiSetup.setUp(binaryMessenger: messenger, api: instance)
         instance.flutterApi = EasyPipFlutterApi(binaryMessenger: messenger)
         
-        // 1. Maak het kanaal aan
-        let bridgeChannelInstance = FlutterMethodChannel(
-            name: "com.jdbs.iptv.easy_pip_plugin.bridge",
-            binaryMessenger: messenger
-        )
-        instance.bridgeChannel = bridgeChannelInstance
-        
-        // CRUCIALE FIX: Registreer het bridge-kanaal ook als delegate bij de registrar!
-        // Dit zorgt ervoor dat Flutter de berichten via 'flutter run' wél kan ontvangen en printen.
-        registrar.addMethodCallDelegate(instance, channel: bridgeChannelInstance)
-        
         registrar.addMethodCallDelegate(instance, channel: FlutterMethodChannel(name: "easy_pip_plugin", binaryMessenger: messenger))
         
         instance.setupAudioSession()
@@ -46,7 +34,6 @@ import AVFoundation
             object: nil
         )
     }
-
 
     @objc private func appDidBecomeActive() {
         DispatchQueue.main.async { [weak self] in
@@ -90,7 +77,8 @@ import AVFoundation
         }
     }
 
-    func setupAutoPiP(width: Int64, height: Int64) throws {
+    // GEUPDATE: Geaccepteerde urlStr toegevoegd aan de parameters (conform Pigeon)
+    func setupAutoPiP(width: Int64, height: Int64, urlStr: String) throws {
         guard try isPiPSupported() else { return }
         
         self.savedWidth = width
@@ -106,7 +94,8 @@ import AVFoundation
                 view.alpha = 0.01 
                 mainView?.addSubview(view)
                 
-                if let url = URL(string: "https://www.jdbs.nl/iptv/movie/demo/demo/20301.mp4") {
+                // GEFIXT: De hardgecodeerde URL is vervangen door de dynamische binnenkomende urlStr
+                if let url = URL(string: urlStr) {
                     let player = AVPlayer(url: url)
                     self.nativePlayer = player
                     
@@ -144,6 +133,9 @@ import AVFoundation
                 self.pipController = nil
             }
             
+            self.containerView?.frame = CGRect(x: 0, y: 0, width: CGFloat(width), height: CGFloat(height))
+            self.playerLayer.frame = self.containerView?.bounds ?? .zero
+            
             let controller = AVPictureInPictureController(playerLayer: self.playerLayer)
             if let controller = controller {
                 controller.delegate = self
@@ -156,8 +148,6 @@ import AVFoundation
             self.setupAudioSession()
             self.nativePlayer?.play()
             
-            // FIX VOOR ZWART BEELD (1E KEER): We verhogen de buffertijd naar 350ms zodat iOS gegarandeerd 
-            // gevulde frames heeft voordat de PiP animatie start.
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
                 if let controller = self.pipController, controller.isPictureInPicturePossible {
                     controller.startPictureInPicture()
@@ -191,8 +181,9 @@ import AVFoundation
             self.setupAudioSession()
             self.nativePlayer?.play() 
             
-            let arguments: [String: Any] = ["isActive": true, "seekPosition": 0.0]
-            self.bridgeChannel?.invokeMethod("onPiPStatusChanged", arguments: arguments)
+            Task { @MainActor [weak self] in
+                try? await self?.flutterApi?.onPiPStatusChanged(isActive: true)
+            }
         }
     }
 
@@ -204,13 +195,9 @@ import AVFoundation
             }
             self.setupAudioSession()
             
-            let currentSeconds = CMTimeGetSeconds(self.nativePlayer?.currentTime() ?? .zero)
-            let arguments: [String: Any] = [
-                "isActive": false,
-                "seekPosition": currentSeconds
-            ]
-            
-            self.bridgeChannel?.invokeMethod("onPiPStatusChanged", arguments: arguments)
+            Task { @MainActor [weak self] in
+                try? await self?.flutterApi?.onPiPStatusChanged(isActive: false)
+            }
             
             if self.isVideoPlaying {
                 self.nativePlayer?.play()
@@ -226,13 +213,11 @@ import AVFoundation
             guard let self = self else { return }
             self.setupAudioSession()
             
-            let currentSeconds = CMTimeGetSeconds(self.nativePlayer?.currentTime() ?? .zero)
-            let arguments: [String: Any] = [
-                "isActive": false,
-                "seekPosition": currentSeconds
-            ]
+            self.containerView?.alpha = 0.01
             
-            self.bridgeChannel?.invokeMethod("onPiPStatusChanged", arguments: arguments)
+            Task { @MainActor [weak self] in
+                try? await self?.flutterApi?.onPiPStatusChanged(isActive: false)
+            }
             
             if self.isVideoPlaying {
                 self.nativePlayer?.play()
