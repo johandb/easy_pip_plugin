@@ -1,6 +1,5 @@
 import 'package:easy_pip_plugin/easy_pip_plugin.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 
@@ -17,60 +16,82 @@ class MyApp extends StatefulWidget {
   State<MyApp> createState() => _MyAppState();
 }
 
-class _MyAppState extends State<MyApp> {
+class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   late final Player _player = Player();
   late VideoController _videoController = VideoController(_player);
 
-  static const MethodChannel _bridgeChannel = MethodChannel('com.jdbs.iptv.easy_pip_plugin.bridge');
-
-  final String _videoUrl = 'https://www.jdbs.nl/iptv/movie/demo/demo/20301.mp4';
+  //final String _videoUrl = 'https://www.jdbs.nl/iptv/movie/demo/demo/20301.mp4';
+  final String _videoUrl = 'http://line.tvprostreaming.live:80/movie/dd03da96e3/dms6dcts1g/1070395.ts';
+  //final String _videoUrl = 'https://pixabay.com/videos/download/video-103312_medium.mp4';
   bool _isVideoCompleted = false;
   bool _isPiPSupported = false;
 
   int _videoWidgetKeyCounter = 0;
 
+  // GOUDEN TIME-TRACKER TIMERS:
+  DateTime? _pipStartTime;
+
   @override
   void initState() {
     super.initState();
-
-    // STABIELE METHODCHANNEL HANDLER FIX:
-    _bridgeChannel.setMethodCallHandler((MethodCall call) async {
-      print("MethodChannel aangeroepen: ${call.method}");
-
-      if (call.method == "onPiPStatusChanged") {
-        // Converteer de arguments handmatig naar een veilige map om vastlopen te voorkomen
-        final dynamic args = call.arguments;
-        if (args is Map) {
-          final bool isActive = args['isActive'] ?? false;
-
-          if (!isActive) {
-            // Haal de waarde op (iOS stuurt een Double, dit vangen we op als num)
-            final num rawSeek = args['seekPosition'] ?? 0.0;
-            final double seekPositionInSeconds = rawSeek.toDouble();
-
-            print("========================================");
-            print("PiP GESLOTEN! TIJD: $seekPositionInSeconds SECONDEN");
-            print("========================================");
-
-            // Voer de seek uit naar de juiste Duration
-            final destination = Duration(milliseconds: (seekPositionInSeconds * 1000).toInt());
-            await _player.seek(destination);
-
-            // Reset de complete grafische engine van MediaKit om de texture te de-pauzeren
-            setState(() {
-              _videoWidgetKeyCounter++;
-              _videoController = VideoController(_player);
-            });
-
-            // Start de video direct live op het scherm
-            await _player.play();
-          }
-        }
-      }
-      return; // Cruciaal voor Flutter om de communicatie-pipeline open te houden!
-    });
-
+    WidgetsBinding.instance.addObserver(this);
     _initPlayer();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _player.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) async {
+    // MOMENT A: App gaat naar de achtergrond (PiP start) -> start de stopwatch!
+    if (state == AppLifecycleState.paused) {
+      _pipStartTime = DateTime.now();
+      print("PiP gestart op: $_pipStartTime");
+    }
+
+    // MOMENT B: App keert terug naar de voorgrond (PiP sluit) -> bereken het exacte verschil!
+    if (state == AppLifecycleState.resumed) {
+      print("========================================");
+      print("FLUTTER LIFE-CYCLE: App hersteld uit PiP!");
+      print("========================================");
+
+      if (_player != null && _pipStartTime != null) {
+        final DateTime pipEndTime = DateTime.now();
+
+        // Bereken exact hoeveel tijd er verstreken is (ongeacht of dit 3 seconden of 5 minuten is)
+        final Duration elapsedPipTime = pipEndTime.difference(_pipStartTime!);
+
+        final currentPosition = _player.state.position;
+        final correctedPosition = currentPosition + elapsedPipTime;
+
+        print("========================================");
+        print("PiP is exact ${elapsedPipTime.inSeconds} seconden actief geweest.");
+        print("Flutter player springt vooruit van $currentPosition naar: $correctedPosition");
+        print("========================================");
+
+        // 1. Spoel de Flutter player exact vooruit met de verstreken tijd
+        await _player.seek(correctedPosition);
+
+        // 2. HARD REBOOT VAN DE FLUTTER VIDEO ENGINE:
+        setState(() {
+          _videoWidgetKeyCounter++;
+          _videoController = VideoController(_player);
+        });
+
+        // 3. Reset de native iOS speler status zodat de VOLGENDE PiP ook direct automatisch start!
+        await EasyPipPlugin().updatePlaybackState(true);
+
+        // 4. Start het beeld direct live op het hoofdscherm
+        await _player.play();
+
+        // Reset de timer voor een volgende PiP-sessie
+        _pipStartTime = null;
+      }
+    }
   }
 
   Future<void> _initPlayer() async {
@@ -99,12 +120,11 @@ class _MyAppState extends State<MyApp> {
         },
       ),
     );
-  }
 
-  @override
-  void dispose() {
-    _player.dispose();
-    super.dispose();
+    if (_isPiPSupported) {
+      print("EasyPipPlugin: Dynamische URL doorgeven aan iOS: $_videoUrl");
+      await EasyPipPlugin().setupAutoPiP(width: 16, height: 9, urlStr: _videoUrl);
+    }
   }
 
   Future<void> _restartVideo() async {
@@ -129,6 +149,7 @@ class _MyAppState extends State<MyApp> {
         videoController: _videoController,
         pipWidth: 16,
         pipHeight: 9,
+        urlStr: _videoUrl,
         child: Scaffold(
           appBar: AppBar(
             title: const Text('Easy PiP IPTV Player'),
@@ -182,8 +203,8 @@ class _MyAppState extends State<MyApp> {
                       Icon(Icons.touch_app, size: 48, color: Colors.amber),
                       SizedBox(height: 16),
                       Text(
-                        'Druk op de gele knop rechtsonder!',
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black),
+                        'Press the yellow button!',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black),
                         textAlign: TextAlign.center,
                       ),
                     ],

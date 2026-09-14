@@ -19,7 +19,7 @@ abstract class EasyPipApi {
   bool isPiPSupported();
   void enterPiP(int width, int height);
   PipStatus getPiPStatus();
-  void setupAutoPiP(int width, int height); 
+  void setupAutoPiP(int width, int height, String urlStr); 
   
   // NIEUW: Geef de huidige afspeelstatus door aan Native voor de juiste knoppen (play vs pause)
   void updatePlaybackState(bool isPlaying);

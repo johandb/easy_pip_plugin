@@ -20,6 +20,9 @@ class EasyPipWidget extends StatefulWidget {
   /// De hoogte-verhouding voor het PiP-venster (standaard 9).
   final int pipHeight;
 
+  /// De url
+  final String urlStr; 
+
   const EasyPipWidget({
     super.key,
     required this.videoController,
@@ -27,6 +30,7 @@ class EasyPipWidget extends StatefulWidget {
     this.onPlayPauseToggle,
     this.pipWidth = 16,
     this.pipHeight = 9,
+    required this.urlStr,
   });
 
   @override
@@ -70,7 +74,7 @@ class _EasyPipWidgetState extends State<EasyPipWidget> with WidgetsBindingObserv
       
       final supported = await _pipPlugin.isPiPSupported();
       if (isPlaying && supported) {
-        await _pipPlugin.setupAutoPiP(width: widget.pipWidth, height: widget.pipHeight);
+        await _pipPlugin.setupAutoPiP(width: widget.pipWidth, height: widget.pipHeight, urlStr: widget.urlStr);
       }
     });
   }

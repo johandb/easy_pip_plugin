@@ -36,8 +36,8 @@ class EasyPipPlugin {
     await _api.enterPiP(width, height);
   }
 
-  Future<void> setupAutoPiP({required int width, required int height}) async {
-    await _api.setupAutoPiP(width, height);
+  Future<void> setupAutoPiP({required int width, required int height, required String urlStr}) async {
+    await _api.setupAutoPiP(width, height, urlStr);
   }
 
   Future<PipStatus> getPiPStatus() async => _api.getPiPStatus();

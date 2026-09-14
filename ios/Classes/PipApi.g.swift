@@ -269,7 +269,7 @@ protocol EasyPipApi {
   func isPiPSupported() throws -> Bool
   func enterPiP(width: Int64, height: Int64) throws
   func getPiPStatus() throws -> PipStatus
-  func setupAutoPiP(width: Int64, height: Int64) throws
+  func setupAutoPiP(width: Int64, height: Int64, urlStr: String) throws
   func updatePlaybackState(isPlaying: Bool) throws
 }
 
@@ -327,8 +327,9 @@ class EasyPipApiSetup {
         let args = message as! [Any?]
         let widthArg = args[0] as! Int64
         let heightArg = args[1] as! Int64
+        let urlStrArg = args[2] as! String
         do {
-          try api.setupAutoPiP(width: widthArg, height: heightArg)
+          try api.setupAutoPiP(width: widthArg, height: heightArg, urlStr: urlStrArg)
           reply(wrapResult(nil))
         } catch {
           reply(wrapError(error))

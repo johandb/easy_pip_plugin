@@ -268,7 +268,7 @@ interface EasyPipApi {
   fun isPiPSupported(): Boolean
   fun enterPiP(width: Long, height: Long)
   fun getPiPStatus(): PipStatus
-  fun setupAutoPiP(width: Long, height: Long)
+  fun setupAutoPiP(width: Long, height: Long, urlStr: String)
   fun updatePlaybackState(isPlaying: Boolean)
 
   companion object {
@@ -336,8 +336,9 @@ interface EasyPipApi {
             val args = message as List<Any?>
             val widthArg = args[0] as Long
             val heightArg = args[1] as Long
+            val urlStrArg = args[2] as String
             val wrapped: List<Any?> = try {
-              api.setupAutoPiP(widthArg, heightArg)
+              api.setupAutoPiP(widthArg, heightArg, urlStrArg)
               listOf(null)
             } catch (exception: Throwable) {
               PipApiPigeonUtils.wrapError(exception)
