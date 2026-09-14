@@ -24,10 +24,16 @@ import AVFoundation
         EasyPipApiSetup.setUp(binaryMessenger: messenger, api: instance)
         instance.flutterApi = EasyPipFlutterApi(binaryMessenger: messenger)
         
-        instance.bridgeChannel = FlutterMethodChannel(
+        // 1. Maak het kanaal aan
+        let bridgeChannelInstance = FlutterMethodChannel(
             name: "com.jdbs.iptv.easy_pip_plugin.bridge",
             binaryMessenger: messenger
         )
+        instance.bridgeChannel = bridgeChannelInstance
+        
+        // CRUCIALE FIX: Registreer het bridge-kanaal ook als delegate bij de registrar!
+        // Dit zorgt ervoor dat Flutter de berichten via 'flutter run' wél kan ontvangen en printen.
+        registrar.addMethodCallDelegate(instance, channel: bridgeChannelInstance)
         
         registrar.addMethodCallDelegate(instance, channel: FlutterMethodChannel(name: "easy_pip_plugin", binaryMessenger: messenger))
         
@@ -41,12 +47,13 @@ import AVFoundation
         )
     }
 
+
     @objc private func appDidBecomeActive() {
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
             if self.isVideoPlaying && (self.pipController?.isPictureInPictureActive == false) {
                 self.nativePlayer?.play()
-                self.playerLayer.setNeedsDisplay() // Forceer her-tekenen van het videoscherm
+                self.playerLayer.setNeedsDisplay()
             }
         }
     }
@@ -149,13 +156,12 @@ import AVFoundation
             self.setupAudioSession()
             self.nativePlayer?.play()
             
-            // FIX 1: Controleer of de AVPlayer klaar is met bufferen om het zwarte scherm te voorkomen
-            if self.nativePlayer?.currentItem?.status == .readyToPlay {
-                self.pipController?.startPictureInPicture()
-            } else {
-                // Als hij nog niet klaar is (1e keer opstart), geef hem kort de tijd en dwing play
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                    self.nativePlayer?.play()
+            // FIX VOOR ZWART BEELD (1E KEER): We verhogen de buffertijd naar 350ms zodat iOS gegarandeerd 
+            // gevulde frames heeft voordat de PiP animatie start.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                if let controller = self.pipController, controller.isPictureInPicturePossible {
+                    controller.startPictureInPicture()
+                } else {
                     self.pipController?.startPictureInPicture()
                 }
             }
@@ -184,22 +190,33 @@ import AVFoundation
             guard let self = self else { return }
             self.setupAudioSession()
             self.nativePlayer?.play() 
-            self.bridgeChannel?.invokeMethod("onPiPStatusChanged", arguments: true)
+            
+            let arguments: [String: Any] = ["isActive": true, "seekPosition": 0.0]
+            self.bridgeChannel?.invokeMethod("onPiPStatusChanged", arguments: arguments)
         }
     }
 
     public func pictureInPictureController(_ pictureInPictureController: AVPictureInPictureController, restoreUserInterfaceForPictureInPictureStopWithCompletionHandler completionHandler: @escaping (Bool) -> Void) {
         DispatchQueue.main.async { [weak self] in
-            guard let self = self else { return }
+            guard let self = self else { 
+                completionHandler(false)
+                return 
+            }
             self.setupAudioSession()
             
-            // FIX 2: Zorg dat bij terugkeer naar full screen de video direct start en hertekent
+            let currentSeconds = CMTimeGetSeconds(self.nativePlayer?.currentTime() ?? .zero)
+            let arguments: [String: Any] = [
+                "isActive": false,
+                "seekPosition": currentSeconds
+            ]
+            
+            self.bridgeChannel?.invokeMethod("onPiPStatusChanged", arguments: arguments)
+            
             if self.isVideoPlaying {
                 self.nativePlayer?.play()
-                self.playerLayer.setNeedsDisplay() // Dwing iOS om de video-pixels direct op het hoofdscherm te tonen
+                self.playerLayer.setNeedsDisplay() 
             }
             
-            self.bridgeChannel?.invokeMethod("onPiPStatusChanged", arguments: false)
             completionHandler(true)
         }
     }
@@ -208,6 +225,15 @@ import AVFoundation
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
             self.setupAudioSession()
+            
+            let currentSeconds = CMTimeGetSeconds(self.nativePlayer?.currentTime() ?? .zero)
+            let arguments: [String: Any] = [
+                "isActive": false,
+                "seekPosition": currentSeconds
+            ]
+            
+            self.bridgeChannel?.invokeMethod("onPiPStatusChanged", arguments: arguments)
+            
             if self.isVideoPlaying {
                 self.nativePlayer?.play()
                 self.playerLayer.setNeedsDisplay()
