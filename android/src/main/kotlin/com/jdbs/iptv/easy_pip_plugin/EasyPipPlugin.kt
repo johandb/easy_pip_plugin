@@ -29,6 +29,9 @@ class EasyPipPlugin: FlutterPlugin, ActivityAware, EasyPipApi {
     // Onthoud de laatst gekozen aspect ratio om de knoppen correct te kunnen verversen
     private var lastWidth: Int = 16
     private var lastHeight: Int = 9
+
+    // NIEUW: Variabele om de urlStr op te slaan als dit nodig is voor de native player
+    private var currentUrlStr: String? = null
     
     // Coroutine scope om de suspend functies van Pigeon veilig op de Main thread aan te roepen
     private val mainScope = CoroutineScope(Dispatchers.Main)
@@ -113,12 +116,14 @@ class EasyPipPlugin: FlutterPlugin, ActivityAware, EasyPipApi {
         )
     }
 	
-    override fun setupAutoPiP(width: Long, height: Long) {
+    // GEWIJZIGD: urlStr parameter toegevoegd om te voldoen aan de nieuwe Pigeon interface
+    override fun setupAutoPiP(width: Long, height: Long, urlStr: String) {
         val currentActivity = activity ?: return
         if (!isPiPSupported()) return
 
         lastWidth = width.toInt()
         lastHeight = height.toInt()
+        currentUrlStr = urlStr // Optioneel: Sla de URL op indien nodig voor native logica
 
         // Android 12+ (API 31) vereist dat we params vooraf registreren voor de swipe-to-home actie
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
