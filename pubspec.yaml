@@ -1,7 +1,8 @@
 name: easy_pip_plugin
 description: "A flutter Picture In Picture Plugin"
 version: 0.0.1
-homepage:
+repository: https://github.com/johandb/easy_pip_plugin.git
+issue_tracker: https://github.com/johandb/easy_pip_plugin/issues?reload=1
 
 environment:
   sdk: ^3.12.0
