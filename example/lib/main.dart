@@ -48,15 +48,10 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     // FOR IOS : Experimental
     if (state == AppLifecycleState.paused) {
       _pipStartTime = DateTime.now();
-      print("PiP started on: $_pipStartTime");
     }
 
     // MOMENT B: App keert terug naar de voorgrond (PiP sluit) -> bereken het exacte verschil!
     if (state == AppLifecycleState.resumed) {
-      print("===========================================");
-      print("FLUTTER LIFE-CYCLE: App recovered from PiP!");
-      print("===========================================");
-
       if (_player != null && _pipStartTime != null) {
         final DateTime pipEndTime = DateTime.now();
 
@@ -115,7 +110,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     );
 
     if (_isPiPSupported) {
-      print("EasyPipPlugin: Dynamic URL : $_videoUrl");
       await EasyPipPlugin().setupAutoPiP(width: 16, height: 9, urlStr: _videoUrl);
     }
   }
@@ -165,7 +159,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                       Video(key: ValueKey('media_kit_video_$_videoWidgetKeyCounter'), controller: _videoController),
                       if (_isVideoCompleted)
                         Container(
-                          color: Colors.black.withOpacity(0.6),
+                          color: Colors.black.withValues(alpha: 0.6),
                           child: Center(
                             child: ElevatedButton.icon(
                               onPressed: _restartVideo,
