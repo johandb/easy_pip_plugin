@@ -45,17 +45,17 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) async {
-    // MOMENT A: App gaat naar de achtergrond (PiP start) -> start de stopwatch!
+    // FOR IOS : Experimental
     if (state == AppLifecycleState.paused) {
       _pipStartTime = DateTime.now();
-      print("PiP gestart op: $_pipStartTime");
+      print("PiP started on: $_pipStartTime");
     }
 
     // MOMENT B: App keert terug naar de voorgrond (PiP sluit) -> bereken het exacte verschil!
     if (state == AppLifecycleState.resumed) {
-      print("========================================");
-      print("FLUTTER LIFE-CYCLE: App hersteld uit PiP!");
-      print("========================================");
+      print("===========================================");
+      print("FLUTTER LIFE-CYCLE: App recovered from PiP!");
+      print("===========================================");
 
       if (_player != null && _pipStartTime != null) {
         final DateTime pipEndTime = DateTime.now();
@@ -66,15 +66,10 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         final currentPosition = _player.state.position;
         final correctedPosition = currentPosition + elapsedPipTime;
 
-        print("========================================");
-        print("PiP is exact ${elapsedPipTime.inSeconds} seconden actief geweest.");
-        print("Flutter player springt vooruit van $currentPosition naar: $correctedPosition");
-        print("========================================");
-
-        // 1. Spoel de Flutter player exact vooruit met de verstreken tijd
+        // Seek player to the correct position
         await _player.seek(correctedPosition);
 
-        // 2. HARD REBOOT VAN DE FLUTTER VIDEO ENGINE:
+        // Hard reboot VIDEO ENGINE:
         setState(() {
           _videoWidgetKeyCounter++;
           _videoController = VideoController(_player);
@@ -120,7 +115,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     );
 
     if (_isPiPSupported) {
-      print("EasyPipPlugin: Dynamische URL doorgeven : $_videoUrl");
+      print("EasyPipPlugin: Dynamic URL : $_videoUrl");
       await EasyPipPlugin().setupAutoPiP(width: 16, height: 9, urlStr: _videoUrl);
     }
   }
@@ -175,7 +170,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                             child: ElevatedButton.icon(
                               onPressed: _restartVideo,
                               icon: const Icon(Icons.replay),
-                              label: const Text('Video opnieuw afspelen'),
+                              label: const Text('Replay Video'),
                               style: ElevatedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: Colors.black),
                             ),
                           ),
