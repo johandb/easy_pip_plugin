@@ -1,3 +1,11 @@
+## 0.0.9
+
+* Bug fix closing application is showing the pip window
+
+## 0.0.8
+
+* Add missing code block in Manifest to activate buttons in pip window
+
 ## 0.0.7
 
 * Bug fix play / pause in pip window

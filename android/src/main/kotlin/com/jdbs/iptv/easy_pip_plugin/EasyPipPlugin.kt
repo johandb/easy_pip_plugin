@@ -175,7 +175,7 @@ class EasyPipPlugin: FlutterPlugin, ActivityAware, EasyPipApi {
         builder.setAspectRatio(rational)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            builder.setAutoEnterEnabled(true)
+            builder.setAutoEnterEnabled(isPlaying)
         }
 
         // GEFIXT: Maak de intent expliciet door hem hard te koppelen aan je PipActionReceiver klasse.

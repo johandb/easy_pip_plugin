@@ -45,6 +45,19 @@ Open your `android/app/src/main/AndroidManifest.xml` file. Locate the main `.Mai
 </activity>
 ```
 
+In your example/android/app/src/main/Manifest.xml add this code block to activate the buttons in the pip Windows
+
+```
+    <!-- Registered so Android knows where the clicks must going to -->
+    <receiver 
+        android:name="com.jdbs.iptv.easy_pip_plugin.PipActionReceiver"
+        android:exported="true">
+        <intent-filter>
+            <action android:name="com.jdbs.iptv.easy_pip_plugin.ACTION_PLAY_PAUSE" />
+        </intent-filter>
+    </receiver>
+``` 
+
 ---
 
 ### 🍏 iOS Configuration (`Info.plist`)
@@ -71,7 +84,7 @@ Add `easy_pip_plugin` to your `pubspec.yaml` file:
 
 ```yaml
 dependencies:
-  easy_pip_plugin: ^0.0.7
+  easy_pip_plugin: ^0.0.9
 ```
 
 Then run:
