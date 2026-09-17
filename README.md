@@ -71,7 +71,7 @@ Add `easy_pip_plugin` to your `pubspec.yaml` file:
 
 ```yaml
 dependencies:
-  easy_pip_plugin: ^0.0.6
+  easy_pip_plugin: ^0.0.7
 ```
 
 Then run:

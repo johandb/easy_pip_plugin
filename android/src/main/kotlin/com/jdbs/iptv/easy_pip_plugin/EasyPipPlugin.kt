@@ -6,6 +6,7 @@ import android.app.PictureInPictureParams
 import android.app.RemoteAction
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.graphics.drawable.Icon
 import android.os.Build
@@ -22,6 +23,7 @@ class EasyPipPlugin: FlutterPlugin, ActivityAware, EasyPipApi {
     private var activity: Activity? = null
     private var context: Context? = null
     private var flutterApi: EasyPipFlutterApi? = null
+    private var receiver: PipActionReceiver? = null
     
     // Status om bij te houden of de video momenteel speelt of gepauzeerd is
     private var isVideoPlaying: Boolean = true
@@ -41,25 +43,43 @@ class EasyPipPlugin: FlutterPlugin, ActivityAware, EasyPipApi {
         EasyPipApi.setUp(binding.binaryMessenger, this)
         flutterApi = EasyPipFlutterApi(binding.binaryMessenger)
 
-        // Koppel de klik van de native Android BroadcastReceiver aan de Pigeon Flutter API
-        PipActionReceiver.onActionTriggered = {
-            activity?.runOnUiThread {
-                mainScope.launch {
-                    try {
-                        flutterApi?.onPlayPauseActionTriggered()
-                    } catch (e: Exception) {
-                        e.printStackTrace()
+        // GEFIXT: Maak de receiver aan en registreer deze met de juiste vlaggen voor Android 14+
+        receiver = PipActionReceiver().apply {
+            PipActionReceiver.onActionTriggered = {
+                activity?.runOnUiThread {
+                    mainScope.launch {
+                        try {
+                            flutterApi?.onPlayPauseActionTriggered()
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
                     }
                 }
             }
         }
+
+        val filter = IntentFilter("com.jdbs.iptv.easy_pip_plugin.ACTION_PLAY_PAUSE")
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            // Context.RECEIVER_NOT_EXPORTED is verplicht vanaf Android 14 voor interne broadcasts
+            context?.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            context?.registerReceiver(receiver, filter)
+        }
     }
 
     override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
-        context = null
         EasyPipApi.setUp(binding.binaryMessenger, null)
         flutterApi = null
+        
+        // GEFIXT: Netjes de receiver ontkoppelen om memory leaks te voorkomen
+        try {
+            context?.unregisterReceiver(receiver)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
         PipActionReceiver.onActionTriggered = null
+        receiver = null
+        context = null
     }
 
     // --- ActivityAware lifecycle methoden ---
@@ -116,29 +136,24 @@ class EasyPipPlugin: FlutterPlugin, ActivityAware, EasyPipApi {
         )
     }
 	
-	// No action on Android
     override fun minimizeApp() {
         // Alleen nodig voor iOS, doet niets op Android
     }
 
-	
-    // GEWIJZIGD: urlStr parameter toegevoegd om te voldoen aan de nieuwe Pigeon interface
     override fun setupAutoPiP(width: Long, height: Long, urlStr: String) {
         val currentActivity = activity ?: return
         if (!isPiPSupported()) return
 
         lastWidth = width.toInt()
         lastHeight = height.toInt()
-        currentUrlStr = urlStr // Optioneel: Sla de URL op indien nodig voor native logica
+        currentUrlStr = urlStr
 
-        // Android 12+ (API 31) vereist dat we params vooraf registreren voor de swipe-to-home actie
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             val params = createPipParams(lastWidth, lastHeight, isVideoPlaying)
             currentActivity.setPictureInPictureParams(params)
         }
     }
 
-    // NIEUW: Update de afspeelstatus en ververs direct de native knoppen als we in PiP zitten
     override fun updatePlaybackState(isPlaying: Boolean) {
         this.isVideoPlaying = isPlaying
         val currentActivity = activity ?: return
@@ -146,7 +161,6 @@ class EasyPipPlugin: FlutterPlugin, ActivityAware, EasyPipApi {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val isInPip = currentActivity.isInPictureInPictureMode
             if (isInPip) {
-                // Ververs het PiP venster met de nieuwe Play of Pause knop lay-out
                 val params = createPipParams(lastWidth, lastHeight, isPlaying)
                 currentActivity.setPictureInPictureParams(params)
             }
@@ -157,30 +171,30 @@ class EasyPipPlugin: FlutterPlugin, ActivityAware, EasyPipApi {
     private fun createPipParams(width: Int, height: Int, isPlaying: Boolean): PictureInPictureParams {
         val builder = PictureInPictureParams.Builder()
         
-        // Stel de beeldverhouding in
         val rational = Rational(width, height)
         builder.setAspectRatio(rational)
 
-        // Android 12+ auto enter ondersteuning inschakelen
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             builder.setAutoEnterEnabled(true)
         }
 
-        // Maak de intent die afgevuurd wordt zodra de gebruiker op de knop drukt
-        val intent = Intent("com.jdbs.iptv.easy_pip_plugin.ACTION_PLAY_PAUSE").apply {
+        // GEFIXT: Maak de intent expliciet door hem hard te koppelen aan je PipActionReceiver klasse.
+        // Dit voorkomt dat Android 14+ de achtergrond-click weigert uit te voeren.
+        val intent = Intent(activity, PipActionReceiver::class.java).apply {
+            action = "com.jdbs.iptv.easy_pip_plugin.ACTION_PLAY_PAUSE"
             `package` = activity?.packageName
         }
         
-        // Mutability flags verplicht vanaf Android 12+
+        // GEFIXT: Gebruik FLAG_IMMUTABLE in plaats van FLAG_MUTABLE.
+        // Omdat we geen extra veranderbare data meesturen, eist Android 14+ hier onveranderbaarheid.
         val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         } else {
             PendingIntent.FLAG_UPDATE_CURRENT
         }
         
         val pendingIntent = PendingIntent.getBroadcast(activity, 0, intent, flags)
 
-        // Bepaal het juiste native icoon en tekst
         val iconRes = if (isPlaying) {
             android.R.drawable.ic_media_pause
         } else {
@@ -191,7 +205,6 @@ class EasyPipPlugin: FlutterPlugin, ActivityAware, EasyPipApi {
         val icon = Icon.createWithResource(activity, iconRes)
         val action = RemoteAction(icon, title, title, pendingIntent)
 
-        // Voeg de actie toe aan de knoppenbalk
         val actions = ArrayList<RemoteAction>()
         actions.add(action)
         builder.setActions(actions)
@@ -199,7 +212,6 @@ class EasyPipPlugin: FlutterPlugin, ActivityAware, EasyPipApi {
         return builder.build()
     }
 
-    // Handige helper om de status veilig naar Flutter te sturen binnen een Coroutine
     private fun sendPipStatusToFlutter(isActive: Boolean) {
         mainScope.launch {
             try {

@@ -1,3 +1,7 @@
+## 0.0.7
+
+* Bug fix play / pause in pip window
+
 ## 0.0.6
 
 * Add callback function to check if PIP mode is active
