@@ -6,6 +6,7 @@ import AVFoundation
 @objc public class EasyPipPlugin: NSObject, FlutterPlugin, EasyPipApi, AVPictureInPictureControllerDelegate {
     private var flutterApi: EasyPipFlutterApi?
     private var pipController: AVPictureInPictureController?
+    private var binaryMessenger: FlutterBinaryMessenger? 
     
     private var isVideoPlaying: Bool = true
     private var containerView: UIView?
@@ -19,6 +20,7 @@ import AVFoundation
     public static func register(with registrar: FlutterPluginRegistrar) {
         let messenger = registrar.messenger()
         let instance = EasyPipPlugin()
+        instance.binaryMessenger = messenger
         
         EasyPipApiSetup.setUp(binaryMessenger: messenger, api: instance)
         instance.flutterApi = EasyPipFlutterApi(binaryMessenger: messenger)
@@ -174,65 +176,83 @@ import AVFoundation
     }
 
     // --- AVPictureInPictureControllerDelegate Callbacks ---
+    // --- AVPictureInPictureControllerDelegate Callbacks ---
+
+    // Handmatige binaire helper die 100% de data-envelop van Pigeon nabootst
+    private func sendNativePiPStatus(isActive: Bool) {
+        // Forceer de overstap naar de hoofdthread om threading crashes te voorkomen
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self, let messenger = self.binaryMessenger else { return }
+            
+            // De exacte binaire kanaalnaam die Pigeon gebruikt voor deze FlutterApi callback
+            let channelName = "dev.flutter.pigeon.easy_pip_plugin.EasyPipFlutterApi.onPiPStatusChanged"
+            
+            // Pigeon verwacht een List (Array) met de argumenten om de Dart parameters te vullen
+            let arguments: [Any] = [isActive]
+            
+            // GEFIXT: Gebruik FlutterStandardMessageCodec (i.p.v. MethodCodec) 
+            // om de array rechtstreeks en foutloos om te zetten naar binaire data (Data)
+            let codec = FlutterStandardMessageCodec.sharedInstance()
+            let messageData = codec.encode(arguments)
+            
+            // Stuur het binaire pakket direct over de lijn naar Flutter
+            messenger.send(onChannel: channelName, message: messageData)
+        }
+    }
 
     public func pictureInPictureControllerDidStartPictureInPicture(_ pictureInPictureController: AVPictureInPictureController) {
-        DispatchQueue.main.async { [weak self] in
-            guard let self = self else { return }
-            self.setupAudioSession()
-            self.nativePlayer?.play() 
-            
-            Task { @MainActor [weak self] in
-                try? await self?.flutterApi?.onPiPStatusChanged(isActive: true)
-            }
-        }
+        self.setupAudioSession()
+        self.nativePlayer?.play() 
+        
+        self.sendNativePiPStatus(isActive: true)
     }
 
     public func pictureInPictureController(_ pictureInPictureController: AVPictureInPictureController, restoreUserInterfaceForPictureInPictureStopWithCompletionHandler completionHandler: @escaping (Bool) -> Void) {
-        DispatchQueue.main.async { [weak self] in
-            guard let self = self else { 
-                completionHandler(false)
-                return 
-            }
-            self.setupAudioSession()
-            
-            Task { @MainActor [weak self] in
-                try? await self?.flutterApi?.onPiPStatusChanged(isActive: false)
-            }
-            
-            if self.isVideoPlaying {
-                self.nativePlayer?.play()
-                self.playerLayer.setNeedsDisplay() 
-            }
-            
-            completionHandler(true)
+        self.setupAudioSession()
+        
+        self.sendNativePiPStatus(isActive: false)
+        
+        if self.isVideoPlaying {
+            self.nativePlayer?.play()
+            self.playerLayer.setNeedsDisplay() 
         }
+        
+        // Vertraag de UI-animatie herstel van iOS absoluut niet (synchroon uitvoeren!)
+        completionHandler(true)
     }
 
     public func pictureInPictureControllerDidStopPictureInPicture(_ pictureInPictureController: AVPictureInPictureController) {
-        DispatchQueue.main.async { [weak self] in
-            guard let self = self else { return }
-            self.setupAudioSession()
-            
-            self.containerView?.alpha = 0.01
-            
-            Task { @MainActor [weak self] in
-                try? await self?.flutterApi?.onPiPStatusChanged(isActive: false)
-            }
-            
-            if self.isVideoPlaying {
-                self.nativePlayer?.play()
-                self.playerLayer.setNeedsDisplay()
-            }
+        self.setupAudioSession()
+        self.containerView?.alpha = 0.01
+        
+        self.sendNativePiPStatus(isActive: false)
+        
+        if self.isVideoPlaying {
+            self.nativePlayer?.play()
+            self.playerLayer.setNeedsDisplay()
         }
     }
     
+   /*
     public func pictureInPictureController(_ pictureInPictureController: AVPictureInPictureController, setPlaybackPaused paused: Bool) {
+        if paused && self.isVideoPlaying {
+            self.nativePlayer?.play()
+        }
+    }
+    */
+   public func pictureInPictureController(_ pictureInPictureController: AVPictureInPictureController, setPlaybackPaused paused: Bool) {
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
-            if paused && self.isVideoPlaying {
+            
+            // Als de video hoort af te spelen (isVideoPlaying == true), 
+            // dan negeren we de iOS-pauze en forceren we de player om direct DOOR te spelen.
+            if self.isVideoPlaying {
                 self.nativePlayer?.play()
             }
         }
     }
+
 }
+
+
 

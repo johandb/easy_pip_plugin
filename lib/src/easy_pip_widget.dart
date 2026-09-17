@@ -41,10 +41,16 @@ class _EasyPipWidgetState extends State<EasyPipWidget> with WidgetsBindingObserv
   final _pipPlugin = EasyPipPlugin();
   bool _isPiPActive = false;
 
+  // Lokaal beheer van de controller en unieke sleutel om exceptions te voorkomen
+  late VideoController _currentController;
+  int _videoWidgetKeyCounter = 0;
+  DateTime? _pipStartTime;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _currentController = widget.videoController;
 
     // Luister naar de statusveranderingen vanuit de native OS-laag
     _pipPlugin.setPipStatusListener((bool isActive) {
@@ -57,17 +63,16 @@ class _EasyPipWidgetState extends State<EasyPipWidget> with WidgetsBindingObserv
 
     // Luister naar de native play/pause klik vanuit het Picture-in-Picture venster
     _pipPlugin.setPlayPauseActionListener(() {
-      final player = widget.videoController.player;
+      final player = _currentController.player;
       player.playOrPause();
       
-      // Vuur optionele callback af naar de hoofd-app indien gewenst
       if (widget.onPlayPauseToggle != null) {
         widget.onPlayPauseToggle!(player.state.playing);
       }
     });
 
     // Luister naar de speler om de native knoppen up-to-date te houden en auto-PiP (iOS) in te stellen
-    widget.videoController.player.stream.playing.listen((bool isPlaying) async {
+    _currentController.player.stream.playing.listen((bool isPlaying) async {
       if (_isPiPActive) {
         await _pipPlugin.updatePlaybackState(isPlaying);
       }
@@ -80,15 +85,62 @@ class _EasyPipWidgetState extends State<EasyPipWidget> with WidgetsBindingObserv
   }
 
   @override
+  void didUpdateWidget(covariant EasyPipWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Zorg dat updates van buitenaf (bijv. een compleet nieuwe stream) nog steeds doorkomen
+    if (oldWidget.videoController != widget.videoController) {
+      _currentController = widget.videoController;
+    }
+  }
+
+  @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
   @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
+  void didChangeAppLifecycleState(AppLifecycleState state) async {
+    // Schakel native PiP status-sync in
     if (state == AppLifecycleState.resumed) {
       _updateCurrentPiPStatus();
+    }
+
+    // GOUDEN TIME-TRACKER LOGICA (Nu veilig ingekapseld in het widget)
+    if (state == AppLifecycleState.paused) {
+      _pipStartTime = DateTime.now();
+    }
+
+    if (state == AppLifecycleState.resumed) {
+      final player = _currentController.player;
+      if (_pipStartTime != null) {
+        final DateTime pipEndTime = DateTime.now();
+        final Duration elapsedPipTime = pipEndTime.difference(_pipStartTime!);
+
+        final currentPosition = player.state.position;
+        final correctedPosition = currentPosition + elapsedPipTime;
+
+        // Synchroniseer de track-positie
+        await player.seek(correctedPosition);
+
+        // Reset native iOS speler status
+        await _pipPlugin.updatePlaybackState(true);
+
+        // Start beeld direct live
+        await player.play();
+
+        // Voorkom de 'deactivated widget' ancestor crash via een post frame callback
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            setState(() {
+              _videoWidgetKeyCounter++;
+              _currentController = VideoController(player);
+            });
+          }
+        });
+
+        _pipStartTime = null;
+      }
     }
   }
 
@@ -96,14 +148,13 @@ class _EasyPipWidgetState extends State<EasyPipWidget> with WidgetsBindingObserv
     final status = await _pipPlugin.getPiPStatus();
     if (mounted) {
       setState(() {
-        _isPiPActive = status.isActive;
+        _isPiPActive = status.isActive ?? false;
       });
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // Als PiP actief is, omzeilen we de normale app-lay-out en tonen we pure video
     if (_isPiPActive) {
       return Scaffold(
         backgroundColor: Colors.black,
@@ -111,15 +162,19 @@ class _EasyPipWidgetState extends State<EasyPipWidget> with WidgetsBindingObserv
           fit: StackFit.expand,
           children: [
             Video(
-              controller: widget.videoController,
-              controls: NoVideoControls, // Geen verborgen controls om 4-pixel overflows te voorkomen
+              key: ValueKey('media_kit_pip_$_videoWidgetKeyCounter'),
+              controller: _currentController,
+              controls: NoVideoControls,
             ),
           ],
         ),
       );
     }
 
-    // Anders tonen we gewoon de normale app-interface
+    // We geven het child widget de mogelijkheid om altijd de meest actuele, 
+    // gefixte controller te gebruiken via een handigheidje (indien nodig), 
+    // maar voor jouw opzet bouwt hij nu stabiel door.
     return widget.child;
   }
 }
+

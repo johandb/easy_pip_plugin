@@ -9,8 +9,8 @@ import 'package:pigeon/pigeon.dart';
 ))
 
 class PipStatus {
-  bool isSupported;
-  bool isActive;
+  bool? isSupported;
+  bool? isActive;
 }
 
 // Communicatie van Flutter naar Native (Host)

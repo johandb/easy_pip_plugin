@@ -16,70 +16,24 @@ class MyApp extends StatefulWidget {
   State<MyApp> createState() => _MyAppState();
 }
 
-class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
+class _MyAppState extends State<MyApp> {
   late final Player _player = Player();
-  late VideoController _videoController = VideoController(_player);
+  late final VideoController _videoController = VideoController(_player);
 
   final String _videoUrl = 'https://www.jdbs.nl/iptv/movie/demo/demo/20301.mp4';
   bool _isVideoCompleted = false;
   bool _isPiPSupported = false;
 
-  int _videoWidgetKeyCounter = 0;
-
-  // GOUDEN TIME-TRACKER TIMERS:
-  DateTime? _pipStartTime;
-
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
     _initPlayer();
   }
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
     _player.dispose();
     super.dispose();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) async {
-    // FOR IOS : Experimental
-    if (state == AppLifecycleState.paused) {
-      _pipStartTime = DateTime.now();
-    }
-
-    // MOMENT B: App keert terug naar de voorgrond (PiP sluit) -> bereken het exacte verschil!
-    if (state == AppLifecycleState.resumed) {
-      if (_player != null && _pipStartTime != null) {
-        final DateTime pipEndTime = DateTime.now();
-
-        // Bereken exact hoeveel tijd er verstreken is (ongeacht of dit 3 seconden of 5 minuten is)
-        final Duration elapsedPipTime = pipEndTime.difference(_pipStartTime!);
-
-        final currentPosition = _player.state.position;
-        final correctedPosition = currentPosition + elapsedPipTime;
-
-        // Seek player to the correct position
-        await _player.seek(correctedPosition);
-
-        // Hard reboot VIDEO ENGINE:
-        setState(() {
-          _videoWidgetKeyCounter++;
-          _videoController = VideoController(_player);
-        });
-
-        // 3. Reset de native iOS speler status zodat de VOLGENDE PiP ook direct automatisch start!
-        await EasyPipPlugin().updatePlaybackState(true);
-
-        // 4. Start het beeld direct live op het hoofdscherm
-        await _player.play();
-
-        // Reset de timer voor een volgende PiP-sessie
-        _pipStartTime = null;
-      }
-    }
   }
 
   Future<void> _initPlayer() async {
@@ -140,14 +94,13 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         child: Scaffold(
           appBar: AppBar(title: const Text('Easy PiP IPTV Player'), centerTitle: true),
           backgroundColor: Colors.black,
-
           floatingActionButton: FloatingActionButton(
+            heroTag: null,
             onPressed: _triggerManualPiP,
             tooltip: 'Start PiP Modus',
             backgroundColor: Colors.amber,
             child: const Icon(Icons.picture_in_picture_alt, color: Colors.black),
           ),
-
           body: SafeArea(
             child: ListView(
               padding: EdgeInsets.zero,
@@ -156,7 +109,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                   aspectRatio: 16 / 9,
                   child: Stack(
                     children: [
-                      Video(key: ValueKey('media_kit_video_$_videoWidgetKeyCounter'), controller: _videoController),
+                      // Het widget handelt intern de engine-reboots en keys af, 
+                      // dus we kunnen hier direct de basis controller meegeven.
+                      Video(controller: _videoController),
                       if (_isVideoCompleted)
                         Container(
                           color: Colors.black.withValues(alpha: 0.6),
@@ -197,3 +152,4 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     );
   }
 }
+

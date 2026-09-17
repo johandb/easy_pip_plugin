@@ -203,14 +203,14 @@ class FlutterError (
 
 /** Generated class from Pigeon that represents data sent in messages. */
 data class PipStatus (
-  val isSupported: Boolean,
-  val isActive: Boolean
+  val isSupported: Boolean? = null,
+  val isActive: Boolean? = null
 )
  {
   companion object {
     fun fromList(pigeonVar_list: List<Any?>): PipStatus {
-      val isSupported = pigeonVar_list[0] as Boolean
-      val isActive = pigeonVar_list[1] as Boolean
+      val isSupported = pigeonVar_list[0] as Boolean?
+      val isActive = pigeonVar_list[1] as Boolean?
       return PipStatus(isSupported, isActive)
     }
   }

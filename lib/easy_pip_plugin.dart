@@ -1,6 +1,5 @@
 export 'src/easy_pip_widget.dart';
 
-import 'dart:ui';
 import 'package:flutter/services.dart'; // VERPLICHT voor MethodChannel
 import 'src/pip_api.g.dart';
 

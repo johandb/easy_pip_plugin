@@ -190,14 +190,14 @@ private func nilOrValue<T>(_ value: Any?) -> T? {
 
 /// Generated class from Pigeon that represents data sent in messages.
 struct PipStatus: Hashable, CustomStringConvertible {
-  var isSupported: Bool
-  var isActive: Bool
+  var isSupported: Bool? = nil
+  var isActive: Bool? = nil
 
 
   // swift-format-ignore: AlwaysUseLowerCamelCase
   static func fromList(_ pigeonVar_list: [Any?]) -> PipStatus? {
-    let isSupported = pigeonVar_list[0] as! Bool
-    let isActive = pigeonVar_list[1] as! Bool
+    let isSupported: Bool? = nilOrValue(pigeonVar_list[0])
+    let isActive: Bool? = nilOrValue(pigeonVar_list[1])
 
     return PipStatus(
       isSupported: isSupported,

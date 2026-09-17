@@ -109,13 +109,13 @@ int _deepHash(Object? value) {
 
 class PipStatus {
   PipStatus({
-    required this.isSupported,
-    required this.isActive,
+    this.isSupported,
+    this.isActive,
   });
 
-  bool isSupported;
+  bool? isSupported;
 
-  bool isActive;
+  bool? isActive;
 
   List<Object?> _toList() {
     return <Object?>[
@@ -130,8 +130,8 @@ class PipStatus {
   static PipStatus decode(Object result) {
     result as List<Object?>;
     return PipStatus(
-      isSupported: result[0]! as bool,
-      isActive: result[1]! as bool,
+      isSupported: result[0] as bool?,
+      isActive: result[1] as bool?,
     );
   }
 

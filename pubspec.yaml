@@ -1,6 +1,6 @@
 name: easy_pip_plugin
 description: "A flutter Picture In Picture Plugin"
-version: 0.0.1
+version: 0.0.2
 repository: https://github.com/johandb/easy_pip_plugin.git
 issue_tracker: https://github.com/johandb/easy_pip_plugin/issues?reload=1
 
@@ -11,6 +11,9 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  media_kit: ^1.2.6
+  media_kit_video: ^2.0.1
+  media_kit_libs_video: ^1.0.7
   plugin_platform_interface: ^2.0.2
   pigeon: ^28.1.0
 
