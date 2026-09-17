@@ -116,6 +116,12 @@ class EasyPipPlugin: FlutterPlugin, ActivityAware, EasyPipApi {
         )
     }
 	
+	// No action on Android
+    override fun minimizeApp() {
+        // Alleen nodig voor iOS, doet niets op Android
+    }
+
+	
     // GEWIJZIGD: urlStr parameter toegevoegd om te voldoen aan de nieuwe Pigeon interface
     override fun setupAutoPiP(width: Long, height: Long, urlStr: String) {
         val currentActivity = activity ?: return

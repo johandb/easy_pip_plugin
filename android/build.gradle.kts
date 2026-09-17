@@ -4,7 +4,7 @@ plugins {
 
 android {
     namespace = "com.jdbs.iptv.easy_pip_plugin"
-    compileSdk = 34 
+    compileSdk = 36 
 
     defaultConfig {
         minSdk = 24

@@ -1,3 +1,7 @@
+## 0.0.5
+
+* Add missing implementation for minimizeApp on Android
+
 ## 0.0.4
 
 * Update example in README

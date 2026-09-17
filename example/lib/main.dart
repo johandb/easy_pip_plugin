@@ -116,7 +116,7 @@ class _MyAppState extends State<MyApp> {
                   aspectRatio: 16 / 9,
                   child: Stack(
                     children: [
-                      // Het widget handelt intern de engine-reboots en keys af, 
+                      // Het widget handelt intern de engine-reboots en keys af,
                       // dus we kunnen hier direct de basis controller meegeven.
                       Video(controller: _videoController),
                       if (_isVideoCompleted)
@@ -159,4 +159,3 @@ class _MyAppState extends State<MyApp> {
     );
   }
 }
-
