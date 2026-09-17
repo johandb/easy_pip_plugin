@@ -1,3 +1,7 @@
+## 0.0.6
+
+* Add callback function to check if PIP mode is active
+
 ## 0.0.5
 
 * Add missing implementation for minimizeApp on Android

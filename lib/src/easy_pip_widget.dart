@@ -16,6 +16,9 @@ class EasyPipWidget extends StatefulWidget {
 
   /// De breedte-verhouding voor het PiP-venster (standaard 16).
   final int pipWidth;
+  
+  /// Callback for status
+  final void Function(bool isActive)? onPipStatusChanged;
 
   /// De hoogte-verhouding voor het PiP-venster (standaard 9).
   final int pipHeight;
@@ -28,6 +31,7 @@ class EasyPipWidget extends StatefulWidget {
     required this.videoController,
     required this.child,
     this.onPlayPauseToggle,
+	this.onPipStatusChanged,
     this.pipWidth = 16,
     this.pipHeight = 9,
     required this.urlStr,
@@ -58,6 +62,9 @@ class _EasyPipWidgetState extends State<EasyPipWidget> with WidgetsBindingObserv
         setState(() {
           _isPiPActive = isActive;
         });
+		if (widget.onPipStatusChanged != null) {
+          widget.onPipStatusChanged!(isActive); 
+        }
       }
     });
 
@@ -147,9 +154,13 @@ class _EasyPipWidgetState extends State<EasyPipWidget> with WidgetsBindingObserv
   Future<void> _updateCurrentPiPStatus() async {
     final status = await _pipPlugin.getPiPStatus();
     if (mounted) {
+      final isActive = status.isActive ?? false;
       setState(() {
-        _isPiPActive = status.isActive ?? false;
+        _isPiPActive = isActive;
       });
+      if (widget.onPipStatusChanged != null) {
+        widget.onPipStatusChanged!(isActive); // NIEUW
+      }
     }
   }
 
