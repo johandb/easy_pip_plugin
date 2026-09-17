@@ -269,6 +269,7 @@ interface EasyPipApi {
   fun enterPiP(width: Long, height: Long)
   fun getPiPStatus(): PipStatus
   fun setupAutoPiP(width: Long, height: Long, urlStr: String)
+  fun minimizeApp()
   fun updatePlaybackState(isPlaying: Boolean)
 
   companion object {
@@ -339,6 +340,22 @@ interface EasyPipApi {
             val urlStrArg = args[2] as String
             val wrapped: List<Any?> = try {
               api.setupAutoPiP(widthArg, heightArg, urlStrArg)
+              listOf(null)
+            } catch (exception: Throwable) {
+              PipApiPigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.easy_pip_plugin.EasyPipApi.minimizeApp$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { _, reply ->
+            val wrapped: List<Any?> = try {
+              api.minimizeApp()
               listOf(null)
             } catch (exception: Throwable) {
               PipApiPigeonUtils.wrapError(exception)

@@ -20,7 +20,8 @@ class _MyAppState extends State<MyApp> {
   late final Player _player = Player();
   late final VideoController _videoController = VideoController(_player);
 
-  final String _videoUrl = 'https://www.jdbs.nl/iptv/movie/demo/demo/20301.mp4';
+  // Change to your url
+  final String _videoUrl = 'https://my.stream.mp4';
   bool _isVideoCompleted = false;
   bool _isPiPSupported = false;
 
@@ -78,7 +79,13 @@ class _MyAppState extends State<MyApp> {
 
   Future<void> _triggerManualPiP() async {
     if (_isPiPSupported) {
-      await EasyPipPlugin().enterPiP(width: 16, height: 9);
+      if (Theme.of(context).platform == TargetPlatform.iOS) {
+        // GEFIXT VOOR IOS: Minimaliseer de app, iOS Auto-PiP handelt de rest flitsloos af!
+        await EasyPipPlugin().minimizeApp();
+      } else {
+        // Voor Android behouden we de directe PiP-aanroep
+        await EasyPipPlugin().enterPiP(width: 16, height: 9);
+      }
     }
   }
 

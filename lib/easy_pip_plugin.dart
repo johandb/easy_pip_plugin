@@ -45,6 +45,12 @@ class EasyPipPlugin {
     await _api.updatePlaybackState(isPlaying);
   }
 
+  /// Minimaliseert de app zodat iOS Auto-PiP direct geactiveerd wordt.
+  Future<void> minimizeApp() async {
+    // _api is de variabele die met EasyPipApi() communiceert (gegenereerd door Pigeon)
+    await _api.minimizeApp(); 
+  }
+
   void setPipStatusListener(void Function(bool isActive) callback) {
     _onStatusChanged = callback;
   }

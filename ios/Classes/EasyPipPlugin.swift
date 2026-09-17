@@ -165,6 +165,13 @@ import AVFoundation
         let active = pipController?.isPictureInPictureActive ?? false
         return PipStatus(isSupported: supported, isActive: active)
     }
+
+    func minimizeApp() throws {
+        DispatchQueue.main.async {
+            // Dit dwingt de iOS applicatie om direct naar de achtergrond te gaan (suspend)
+            UIControl().sendAction(#selector(URLSessionTask.suspend), to: UIApplication.shared, for: nil)
+        }
+    }
     
     func updatePlaybackState(isPlaying: Bool) throws {
         self.isVideoPlaying = isPlaying

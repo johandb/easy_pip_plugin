@@ -270,6 +270,7 @@ protocol EasyPipApi {
   func enterPiP(width: Int64, height: Int64) throws
   func getPiPStatus() throws -> PipStatus
   func setupAutoPiP(width: Int64, height: Int64, urlStr: String) throws
+  func minimizeApp() throws
   func updatePlaybackState(isPlaying: Bool) throws
 }
 
@@ -337,6 +338,19 @@ class EasyPipApiSetup {
       }
     } else {
       setupAutoPiPChannel.setMessageHandler(nil)
+    }
+    let minimizeAppChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.easy_pip_plugin.EasyPipApi.minimizeApp\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      minimizeAppChannel.setMessageHandler { _, reply in
+        do {
+          try api.minimizeApp()
+          reply(wrapResult(nil))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      minimizeAppChannel.setMessageHandler(nil)
     }
     let updatePlaybackStateChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.easy_pip_plugin.EasyPipApi.updatePlaybackState\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
     if let api = api {
