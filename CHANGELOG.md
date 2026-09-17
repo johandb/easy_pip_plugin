@@ -1,3 +1,7 @@
+## 0.0.4
+
+* Update example in README
+
 ## 0.0.3
 
 * Fix version in README
