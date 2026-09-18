@@ -1,3 +1,7 @@
+## 0.0.11
+
+* Version mismatch
+
 ## 0.0.10
 
 * Bug fix IOS playing previous stream in pip mode
