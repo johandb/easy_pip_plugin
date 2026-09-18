@@ -57,17 +57,37 @@ class _EasyPipWidgetState extends State<EasyPipWidget> with WidgetsBindingObserv
     _currentController = widget.videoController;
 
     // Luister naar de statusveranderingen vanuit de native OS-laag
-    _pipPlugin.setPipStatusListener((bool isActive) {
+    _pipPlugin.setPipStatusListener((bool isActive) async { // Maak hier async van
       if (mounted) {
+        // GEFIXT VOOR IOS: Herstel de positie zodra PiP actief wordt op de achtergrond
+        if (isActive && _pipStartTime != null) {
+          final player = _currentController.player;
+
+          final DateTime pipEndTime = DateTime.now();
+          final Duration elapsedPipTime = pipEndTime.difference(_pipStartTime!);
+
+          final currentPosition = player.state.position;
+          // Bereken de gecorrigeerde positie (huidige positie + de tijd die het minimaliseren kostte)
+          final correctedPosition = currentPosition + elapsedPipTime;
+
+          // Forceer de native iOS speler direct naar de juiste milliseconde
+          await player.seek(correctedPosition);
+          await _pipPlugin.updatePlaybackState(true);
+          await player.play();
+
+          // Reset de starttijd zodat dit niet dubbel wordt uitgevoerd bij het openen van de app
+          _pipStartTime = null;
+        }
+
         setState(() {
           _isPiPActive = isActive;
         });
-		if (widget.onPipStatusChanged != null) {
-          widget.onPipStatusChanged!(isActive); 
+        if (widget.onPipStatusChanged != null) {
+          widget.onPipStatusChanged!(isActive);
         }
       }
     });
-
+  
     // Luister naar de native play/pause klik vanuit het Picture-in-Picture venster
     _pipPlugin.setPlayPauseActionListener(() {
       final player = _currentController.player;
@@ -83,13 +103,17 @@ class _EasyPipWidgetState extends State<EasyPipWidget> with WidgetsBindingObserv
       if (_isPiPActive) {
         await _pipPlugin.updatePlaybackState(isPlaying);
       }
-      
+
       final supported = await _pipPlugin.isPiPSupported();
-      if (isPlaying && supported) {
-        await _pipPlugin.setupAutoPiP(width: widget.pipWidth, height: widget.pipHeight, urlStr: widget.urlStr);
+      // GEFIXT: Extra controle of de urlStr wel gevuld is en overeenkomt met een actieve stream
+      if (isPlaying && supported && widget.urlStr.isNotEmpty) {
+        await _pipPlugin.setupAutoPiP(
+          width: widget.pipWidth,
+          height: widget.pipHeight,
+          urlStr: widget.urlStr,
+        );
       }
-    });
-  }
+    });  }
 
   @override
   void didUpdateWidget(covariant EasyPipWidget oldWidget) {
@@ -97,6 +121,15 @@ class _EasyPipWidgetState extends State<EasyPipWidget> with WidgetsBindingObserv
     // Zorg dat updates van buitenaf (bijv. een compleet nieuwe stream) nog steeds doorkomen
     if (oldWidget.videoController != widget.videoController) {
       _currentController = widget.videoController;
+    }
+
+    // GEFIXT VOOR IOS: Als de URL verandert, direct de Auto-PiP native bijwerken
+    if (oldWidget.urlStr != widget.urlStr && _currentController.player.state.playing) {
+      _pipPlugin.setupAutoPiP(
+        width: widget.pipWidth,
+        height: widget.pipHeight,
+        urlStr: widget.urlStr,
+      );
     }
   }
 

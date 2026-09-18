@@ -1,3 +1,8 @@
+## 0.0.10
+
+* Bug fix IOS playing previous stream in pip mode
+* Bug fix IOS pip mode start playing from beginning
+
 ## 0.0.9
 
 * Bug fix closing application is showing the pip window
