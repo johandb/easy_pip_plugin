@@ -21,7 +21,7 @@ class _MyAppState extends State<MyApp> {
   late final VideoController _videoController = VideoController(_player);
 
   // Change to your url
-  //final String _videoUrl = 'http://yourstream';
+  final String _videoUrl = 'http://yourstream';
   bool _isVideoCompleted = false;
   bool _isPiPSupported = false;
 
