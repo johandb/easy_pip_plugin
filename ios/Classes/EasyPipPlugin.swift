@@ -241,11 +241,13 @@ import AVFoundation
     public func pictureInPictureController(_ pictureInPictureController: AVPictureInPictureController, restoreUserInterfaceForPictureInPictureStopWithCompletionHandler completionHandler: @escaping (Bool) -> Void) {
         self.setupAudioSession()
         self.sendNativePiPStatus(isActive: false)
+
+        // GEFIXT: Stop de native player direct zodra we herstellen naar de app!
+        // Dit voorkomt dat de native stream op de achtergrond blijft doorspelen.
+        self.nativePlayer?.pause()
+        self.nativePlayer = nil
+        self.playerLayer.player = nil
         
-        if self.isVideoPlaying {
-            self.nativePlayer?.play()
-            self.playerLayer.setNeedsDisplay() 
-        }
         completionHandler(true)
     }
 
