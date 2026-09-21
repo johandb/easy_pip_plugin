@@ -1,3 +1,7 @@
+## 0.0.14
+
+* Bug fix continue playing while pip was stopped
+
 ## 0.0.13
 
 * Bug fix play and pause button in pip window

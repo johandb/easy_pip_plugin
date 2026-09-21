@@ -1,6 +1,6 @@
 name: easy_pip_plugin
 description: "A flutter Picture In Picture Plugin for IOS and Android"
-version: 0.0.13
+version: 0.0.14
 repository: https://github.com/johandb/easy_pip_plugin.git
 issue_tracker: https://github.com/johandb/easy_pip_plugin/issues?reload=1
 
