@@ -21,7 +21,9 @@ class _MyAppState extends State<MyApp> {
   late final VideoController _videoController = VideoController(_player);
 
   // Change to your url
-  final String _videoUrl = 'http://yourstream';
+  //final String _videoUrl = 'https://www.jdbs.nl/iptv/demo/demo/10101.ts';
+  //final String _videoUrl = 'https://www.jdbs.nl/iptv/series/demo/demo/5031023.mkv';
+  final String _videoUrl = 'https://www.jdbs.nl/iptv/movie/demo/demo/20101.mp4';
   bool _isVideoCompleted = false;
   bool _isPiPSupported = false;
 
